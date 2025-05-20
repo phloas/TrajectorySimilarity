@@ -5,7 +5,7 @@ from pars_args import args
 from torch_geometric.nn import GCNConv
 """
 SMN Encoder
-GCN + Transformer
+GCN + Transformer + AttentionPooling
 """
 class GCN_model(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels):
@@ -18,7 +18,58 @@ class GCN_model(torch.nn.Module):
         x = F.relu(x)
         x = self.conv2(x, edge_index, edge_weight)
         return x
+    
+class ST_layer(nn.Module):
+    def __init__(self, embedding_dim):
+        super(ST_layer, self).__init__()
+        self.w_1 = nn.Parameter(torch.Tensor(embedding_dim, embedding_dim))
+        self.w_2 = nn.Parameter(torch.Tensor(embedding_dim, 1))
+        
+        nn.init.uniform_(self.w_1, -0.1, 0.1)
+        nn.init.uniform_(self.w_2, -0.1, 0.1)
+        
+    def getMask(self, seq_lengths):
+        """
+        create mask based on the sentence lengths
+        :param seq_lengths: sequence length after `pad_packed_sequence`
+        :return: mask (batch_size, max_seq_len)
+        """
+        max_len = int(seq_lengths.max())
 
+        # (batch_size, max_seq_len)
+        mask = torch.ones((seq_lengths.size()[0], max_len)).to(self.device)
+
+        for i, l in enumerate(seq_lengths):
+            if l < max_len:
+                mask[i, l:] = 0
+
+        return mask
+    
+    def forward(self, input, mask):
+        # [batch_size, seq_len, d_model]
+        # [batch_size, 1, 1, seq_len]
+        # Attention...
+        # (batch_size, seq_len, 2 * num_hiddens)
+        v = torch.tanh(torch.matmul(input, self.w_1))
+        mask = mask.squeeze(1).squeeze(1)
+        # (batch_size, seq_len)
+        att = torch.matmul(v, self.w_2).squeeze()
+
+        # add mask
+        if mask is not None:
+            att = att.masked_fill(mask == 0, -1e10)
+
+        # (batch_size, seq_len,1)
+        att_score = F.softmax(att, dim=1).unsqueeze(2)
+        # normalization attention weight
+        # (batch_size, seq_len, 2 * num_hiddens)
+        scored_outputs = input * att_score
+
+        # weighted sum as output
+        # (batch_size, 2 * num_hiddens)
+        out = torch.sum(scored_outputs, dim=1)
+        # print(out.size()) 
+        return out
 
 
 class SMNEncoder(nn.Module):
@@ -35,24 +86,26 @@ class SMNEncoder(nn.Module):
             num_layers=args.num_layers
         ).cuda()
         
-    def forward(self, inputs_a, inputs_b, network_data):
-        input_a, input_len_a = inputs_a
-        input_b, input_len_b = inputs_b
+        self.ST_layer = ST_layer(hidden_dim)
+        
+    def forward(self, inputs, network_data):
+        input, input_len = inputs # [batch_size, traj_len, 2]
         
         # GCN
         if args.use_GCN:
             x = self.mlp_ele(network_data.x) #[node_num, 2]
             graph_node_embeddings = self.gcn_model(x, network_data.edge_index, network_data.edge_weight) # [node_num, 64]
-            mlp_input_a = graph_node_embeddings[input_a]
-            mlp_input_b = graph_node_embeddings[input_b] # [batch_size, traj_len, 64]
+            mlp_input = graph_node_embeddings[input]
         else:
-            mlp_input_a = self.nonLeaky(self.mlp_ele(input_a))
-            mlp_input_b = self.nonLeaky(self.mlp_ele(input_b))
+            mlp_input = self.nonLeaky(self.mlp_ele(input))
             
         # mask
-        mask_a = (input_a[:,:,0] != 0).unsqueeze(-2).cuda() #[batch_size, 1, traj_len] 
-        mask_b = (input_b[:,:,0] != 0).unsqueeze(-2).cuda()
+        mask = (input[:,:,0] != 0).unsqueeze(-2).cuda() #[batch_size, 1, traj_len] 
 
         # Transformer
-        output_a = self.seq_model(mlp_input_a, mask_a)
-        output_b = self.seq_model(mlp_input_b, mask_b)
+        output = self.seq_model(mlp_input, mask)
+        
+        traj_output = self.ST_layer(output, mask)
+        return traj_output
+
+# class Traj_Network(nn.Module):
