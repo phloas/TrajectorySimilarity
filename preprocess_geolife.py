@@ -3,12 +3,9 @@ import numpy as np
 import pickle
 import datetime
 from tqdm import tqdm
+from config import beijing_lat_range, beijing_lon_range
 
 print("脚本开始执行：Geolife轨迹数据预处理")
-
-# 定义Geolife数据集在北京地区的经纬度范围
-BEIJING_LAT_RANGE = [39.6, 40.7] # 北京纬度范围
-BEIJING_LON_RANGE = [115.9, 117.0] # 北京经度范围
 
 path = 'D:\dataset\geolife\Data\\'
 dir_traj = os.listdir(path)
@@ -58,7 +55,7 @@ for i, trajs in enumerate(tqdm(geolife_traj)):
         t1 = ((t-datetime.datetime(1970, 1, 1)).total_seconds())
 
         # 检查轨迹点是否在北京经纬度范围之外
-        if ((lat < BEIJING_LAT_RANGE[0]) | (lat > BEIJING_LAT_RANGE[1]) | (lon < BEIJING_LON_RANGE[0]) | (lon > BEIJING_LON_RANGE[1])):
+        if ((lat < beijing_lat_range[0]) | (lat > beijing_lat_range[1]) | (lon < beijing_lon_range[0]) | (lon > beijing_lon_range[1])):
             inrange = False # 如果有任何一个点超出范围，则标记为不在范围内
         traj_tup = (lon, lat, t1, t) # 创建轨迹点元组 (经度, 纬度, Unix时间戳, datetime对象)
         Traj.append(traj_tup)

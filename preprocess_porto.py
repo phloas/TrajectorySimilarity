@@ -1,19 +1,15 @@
 from tqdm import tqdm
 from datetime import datetime
+from config import porto_lat_range, porto_lon_range
 import csv
 import pickle
 import os
-
-# --- 全局常量和配置 ---
-# Porto数据集的经纬度范围
-PORTO_LON_RANGE = [-9.0, -7.9]
-PORTO_LAT_RANGE = [40.7, 41.8]
 
 # --- 脚本主执行部分 ---
 if __name__ == '__main__':
     print("脚本开始执行：Porto轨迹数据预处理")
 
-    input_csv_path = 'D:\dataset\porto\train.csv'
+    input_csv_path = 'D:\dataset\porto\\train.csv'
     output_pickle_path = 'data/porto/porto'
     max_trajectories_to_process = 40000 # 对应原始代码中的限制
     
@@ -63,9 +59,12 @@ if __name__ == '__main__':
             Traj = [] 
             inrange = True 
             
+            tmp_min_lon = min_lon
             tmp_max_lon = max_lon
+            
             tmp_min_lat = min_lat
             tmp_max_lat = max_lat
+
             
             point_idx = 0 
             
@@ -78,8 +77,8 @@ if __name__ == '__main__':
                     lat = float(tr[1])
                     
                     # 检查轨迹点是否在定义的Porto经纬度范围之外
-                    if ((lat < PORTO_LAT_RANGE[0]) or (lat > PORTO_LAT_RANGE[1]) or 
-                        (lon < PORTO_LON_RANGE[0]) or (lon > PORTO_LON_RANGE[1])):
+                    if ((lat < porto_lat_range[0]) or (lat > porto_lat_range[1]) or 
+                        (lon < porto_lon_range[0]) or (lon > porto_lon_range[1])):
                         inrange = False 
                         break
                     

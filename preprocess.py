@@ -13,11 +13,11 @@ import pickle
 import numpy as np
 import time
 import argparse 
+import os
 
-# 导入自定义工具模块
-from generate_feature import trajectory_feature_generation # 导入用于轨迹特征生成的preprocess模块
+from config import beijing_lat_range, beijing_lon_range, porto_lat_range, porto_lon_range # 导入经纬度范围配置  
+from tools.generate_feature import trajectory_feature_generation # 导入用于轨迹特征生成的preprocess模块
 from tools.distance_computation import trajecotry_distance_list_time, trajecotry_distance_list # 导入距离计算函数
-
 
 def distance_comp(coor_path, num_traj, distance, data_name, use_time_in_distance=False):
     
@@ -29,7 +29,6 @@ def distance_comp(coor_path, num_traj, distance, data_name, use_time_in_distance
         temp_time = []
         for item in t:
             temp_coord.append([item[0], item[1]])
-            # item[2] 是时间戳，我们将其转换为浮点数并保留
             temp_time.append([float(item[2]), float(0)]) # 第二个维度0可以是占位符或表示其他时间相关信息
         np_traj_coord.append(np.array(temp_coord))
         np_traj_time.append(np.array(temp_time))
@@ -39,18 +38,15 @@ def distance_comp(coor_path, num_traj, distance, data_name, use_time_in_distance
     if use_time_in_distance:
         print(f"开始使用 {distance} (带时间信息) 计算轨迹距离...")
         trajecotry_distance_list_time(np_traj_time, batch_size=50, processors=20, distance=distance,
-                                 data_name=data_name)
+                                data_name=data_name)
     else:
         print(f"开始使用 {distance} (不带时间信息) 计算轨迹距离...")
         trajecotry_distance_list(np_traj_coord, batch_size=50, processors=20, distance=distance,
-                             data_name=data_name)
+                            data_name=data_name)
     
     end_t = time.time()
     total = end_t - start_t
     print(f'距离计算完成。总耗时: {total:.2f} 秒。')
-
-
-
 
 def main():
     # 创建ArgumentParser对象
@@ -64,7 +60,7 @@ def main():
                         help='Type of distance metric (e.g., hausdorff, dtw, lcss, erp)')
     parser.add_argument('--num_traj', type=int, default=10000, # 设置一个默认值
                         help='Number of trajectories to process')
-    parser.add_argument('--use_time_in_distance', action='store_true',
+    parser.add_argument('--use_time_in_distance', default=False, action='store_true',
                         help='Use time information in distance computation (add this flag to enable)')
 
     # 解析命令行参数
@@ -72,15 +68,15 @@ def main():
 
     # 根据选择的数据集定义经纬度范围
     if args.dataset == 'geolife':
-        lat_range = [39.6, 40.7]
-        lon_range = [115.9, 117.1]
+        lat_range = beijing_lat_range
+        lon_range = beijing_lon_range
         data_path = './data/geolife/geolife' # 确保这个路径正确
-        default_num_traj = 9000 # Geolife的默认轨迹数量
+        default_num_traj = 16830 # Geolife的默认轨迹数量
     elif args.dataset == 'porto':
-        lat_range = [40.7, 41.8]
-        lon_range = [-9.0, -7.9]
+        lat_range = porto_lat_range
+        lon_range = porto_lon_range
         data_path = './data/porto/porto' # 确保这个路径正确
-        default_num_traj = 10000 # Porto的默认轨迹数量
+        default_num_traj = 40000 # Porto的默认轨迹数量
     else:
         raise ValueError("Invalid dataset specified. Choose 'geolife' or 'porto'.")
 
@@ -89,13 +85,16 @@ def main():
 
     print(f"开始预处理 {args.dataset} 数据集...")
     # 生成轨迹特征文件
-    coor_path, data_name_processed = trajectory_feature_generation(path=data_path,
-                                                                    lat_range=lat_range,
-                                                                    lon_range=lon_range,)
-    print(f"轨迹特征已生成到: {coor_path}")
+    feature_path = f'./features/{args.dataset}/{args.dataset}_traj_index'
+    if not os.path.exists(feature_path):
+        coor_path, data_name_processed = trajectory_feature_generation(path=data_path,
+                                                                        lat_range=lat_range,
+                                                                        lon_range=lon_range,)
+        print(f"轨迹特征已生成到: {coor_path}")
 
     # 调用距离计算函数
     distance_comp(coor_path, num_traj_to_process, args.distance, data_name_processed, args.use_time_in_distance)
+    print(f"{args.dataset}的{args.distance}距离已经计算完毕。")
     print("所有操作完成。")
 
 
