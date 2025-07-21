@@ -17,6 +17,7 @@ import numpy as np
 import os.path as osp
 from tqdm import tqdm
 from tools import config
+from triplet_sampling import get_train_triplet_label
 
 
 def get_label(input_dis_matrix, input_time_matrix, count):
@@ -42,51 +43,6 @@ def get_label(input_dis_matrix, input_time_matrix, count):
         label.append(idx[1:count+1])
     print("测试集相似性标签生成完成。")
     return np.array(label, dtype=object)
-
-
-def get_train_label(input_dis_matrix, input_time_matrix, count):
-    """
-    根据综合距离矩阵为训练集轨迹生成正负样本标签和对应的距离值。
-    对于每条轨迹，找到与其距离最近的 `count` 条正样本轨迹及其距离，
-    以及其余的负样本轨迹及其距离。
-
-    参数:
-    input_dis_matrix (np.ndarray): 空间距离矩阵。
-    input_time_matrix (np.ndarray): 时间距离矩阵。
-    count (int): 定义正样本的最近邻轨迹数量。
-
-    返回值:
-    tuple: 包含四个np.ndarray，分别为：
-        -   label: 正样本轨迹的索引。
-        -   neg_label: 负样本轨迹的索引。
-        -   label_dis: 正样本轨迹的综合距离。
-        -   neg_label_dis: 负样本轨迹的综合距离。
-    """
-    print("正在为训练集生成正负样本标签和距离...")
-    label = []
-    neg_label = []
-
-    label_dis = []
-    neg_label_dis = []
-    for i in tqdm(range(len(input_dis_matrix)), desc="生成训练标签"):
-        input_r = np.array(input_dis_matrix[i])
-        input_t = np.array(input_time_matrix[i])
-        out = config.disWeight*input_r+(1-config.disWeight)*input_t
-        idx = np.argsort(out)
-        val_r = input_r[idx]
-        val_t = input_t[idx]
-        val = config.disWeight*val_r+(1-config.disWeight)*val_t
-        label.append(idx[1:count+1])
-        label_dis.append(val[1:count+1])
-        neg_label.append(idx[count+1:])
-        neg_label_dis.append(val[count+1:])
-
-    label = np.array(label, dtype=object)
-    neg_label = np.array(neg_label, dtype=object)
-    label_dis = np.array(label_dis, dtype=object)
-    neg_label_dis = np.array(neg_label_dis, dtype=object)
-    print("训练集正负样本标签和距离生成完成。")
-    return label, neg_label, label_dis, neg_label_dis
 
 
 train_size = int(config.datalength*config.seeds_radio)
@@ -161,7 +117,7 @@ train_time_matrix = time_matrix[0:train_size, 0:train_size]
 test_time_matrix = time_matrix[train_size:test_size, train_size:test_size]
 
 print("正在为训练集生成正负样本标签 (10个正样本)...")
-train_y, train_neg_y, train_dis, train_neg_dis = get_train_label(train_dis_matrix, train_time_matrix, 10)
+train_y, train_neg_y, train_dis, train_neg_dis = get_train_triplet_label(train_dis_matrix, train_time_matrix, 10)
 print("正在为测试集生成标签 (50个最近邻)...")
 test_y = get_label(test_dis_matrix, test_time_matrix, 50)
 print("标签生成完成。")

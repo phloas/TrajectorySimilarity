@@ -13,14 +13,13 @@ import pickle
 import numpy as np
 import time
 import argparse 
-
+from tools.config import batch_size
 # 导入自定义工具模块
 from generate_feature import trajectory_feature_generation # 导入用于轨迹特征生成的preprocess模块
 from tools.distance_computation import trajecotry_distance_list_time, trajecotry_distance_list # 导入距离计算函数
 
 
-def distance_comp(coor_path, num_traj, distance, data_name, use_time_in_distance=False):
-    
+def distance_comp(coor_path, num_traj, distance_type, data_type, use_time_in_distance=False):
     traj_coord = pickle.load(open(coor_path, 'rb'))[0][:num_traj]
     np_traj_coord = []
     np_traj_time = []
@@ -37,19 +36,17 @@ def distance_comp(coor_path, num_traj, distance, data_name, use_time_in_distance
 
     start_t = time.time()
     if use_time_in_distance:
-        print(f"开始使用 {distance} (带时间信息) 计算轨迹距离...")
-        trajecotry_distance_list_time(np_traj_time, batch_size=50, processors=20, distance=distance,
-                                 data_name=data_name)
+        print(f"开始使用 {distance_type} (带时间信息) 计算轨迹距离...")
+        trajecotry_distance_list_time(np_traj_time, batch_size=batch_size, processors=20, distance_type=distance_type,
+                                 data_name=data_type)
     else:
-        print(f"开始使用 {distance} (不带时间信息) 计算轨迹距离...")
-        trajecotry_distance_list(np_traj_coord, batch_size=50, processors=20, distance=distance,
-                             data_name=data_name)
+        print(f"开始使用 {distance_type} (不带时间信息) 计算轨迹距离...")
+        trajecotry_distance_list(np_traj_coord, batch_size=batch_size, processors=20, distance_type=distance_type,
+                             data_name=data_type)
     
     end_t = time.time()
     total = end_t - start_t
     print(f'距离计算完成。总耗时: {total:.2f} 秒。')
-
-
 
 
 def main():
@@ -57,9 +54,9 @@ def main():
     parser = argparse.ArgumentParser(description='Preprocess trajectory data and compute distances.')
 
     # 添加命令行参数
-    parser.add_argument('--dataset', type=str, required=True, choices=['geolife', 'porto'],
+    parser.add_argument('--dataset', type=str, required=True, default= 'geolife', choices=['geolife', 'porto'],
                         help='Dataset to process (e.g., geolife or porto)')
-    parser.add_argument('--distance', type=str, required=True,
+    parser.add_argument('--distance', type=str, required=True, default = 'hausdorff',
                         choices=['hausdorff', 'dtw', 'lcss', 'erp'],
                         help='Type of distance metric (e.g., hausdorff, dtw, lcss, erp)')
     parser.add_argument('--num_traj', type=int, default=10000, # 设置一个默认值

@@ -20,10 +20,11 @@ import numpy as np
 import multiprocessing
 import tqdm
 import os.path as osp
+import config
 
 # --- 空间距离计算函数 ---
 
-def trajectory_distance(traj_feature_map, traj_keys,  distance_type="hausdorff", batch_size=50, processors=30):
+def trajectory_distance(traj_feature_map, traj_keys,  distance_type=config.distance_type, batch_size=config.batch_size, processors=30):
     """
     根据轨迹特征映射计算批量轨迹之间的空间距离（此函数可能为旧版或特定用途）。
 
@@ -71,7 +72,7 @@ def trajectory_distance(traj_feature_map, traj_keys,  distance_type="hausdorff",
     print("(旧版) 所有空间距离批次计算完成并保存。")
 
 
-def trajecotry_distance_list(trajs, distance="hausdorff", batch_size=50, processors=30, data_name='porto'):
+def trajecotry_distance_list(trajs, distance_type=config.distance_type, batch_size=config.batch_size, processors=30, data_name=config.data_type):
     """
     批量计算轨迹列表之间的空间距离，并保存中间结果。此函数是主要的批量空间距离计算入口。
 
@@ -82,7 +83,7 @@ def trajecotry_distance_list(trajs, distance="hausdorff", batch_size=50, process
     processors (int, optional): 用于并行计算的进程数量。默认为30。
     data_name (str, optional): 数据集名称（例如 'porto' 或 'geolife'）。默认为 'porto'。
     """
-    print(f"开始为数据集 '{data_name}' 计算空间距离，距离类型: {distance}")
+    print(f"开始为数据集 '{data_name}' 计算空间距离，距离类型: {distance_type}")
     pool = multiprocessing.Pool(processes=processors) # 创建进程池
     
     # 遍历轨迹并按批次提交任务给进程池
@@ -92,7 +93,7 @@ def trajecotry_distance_list(trajs, distance="hausdorff", batch_size=50, process
             start_idx = i - batch_size
             end_idx = i
             print(f"提交空间距离计算批次: {start_idx}-{end_idx}")
-            pool.apply_async(trajectory_distance_batch, (end_idx, trajs[start_idx:end_idx], trajs, distance,
+            pool.apply_async(trajectory_distance_batch, (end_idx, trajs[start_idx:end_idx], trajs, distance_type,
                                                          data_name))
     
     # 处理可能存在的最后一个不足batch_size的批次
@@ -101,7 +102,7 @@ def trajecotry_distance_list(trajs, distance="hausdorff", batch_size=50, process
         end_idx = len(trajs)
         if start_idx < end_idx:
             print(f"提交空间距离计算最后一个批次: {start_idx}-{end_idx}")
-            pool.apply_async(trajectory_distance_batch, (end_idx, trajs[start_idx:end_idx], trajs, distance,
+            pool.apply_async(trajectory_distance_batch, (end_idx, trajs[start_idx:end_idx], trajs, distance_type,
                                                          data_name))
 
     pool.close()
@@ -109,7 +110,7 @@ def trajecotry_distance_list(trajs, distance="hausdorff", batch_size=50, process
     print(f"数据集 '{data_name}' 的所有空间距离批次计算完成。")
 
 
-def trajectory_distance_batch(i, batch_trjs, trjs, metric_type="hausdorff", data_name='porto'):
+def trajectory_distance_batch(i, batch_trjs, trjs, distance_type=config.distance_type, data_name=config.data_type):
     """
     计算一个批次轨迹与所有轨迹之间的空间距离矩阵，并保存结果。
 
@@ -123,10 +124,10 @@ def trajectory_distance_batch(i, batch_trjs, trjs, metric_type="hausdorff", data
     print(f"进程 {multiprocessing.current_process().name} 正在计算批次 {i} 的空间距离...")
     trs_matrix = None
 
-    if metric_type == 'lcss':
+    if distance_type == 'lcss':
         # LCSS (Longest Common Subsequence) 距离计算，eps为阈值
         # tdist.cdist 返回的是相似度 (0到1)，需要转换为距离
-        trs_matrix = tdist.cdist(batch_trjs, trjs, metric=metric_type, eps=0.003)
+        trs_matrix = tdist.cdist(batch_trjs, trjs, metric=distance_type, eps=0.003)
         tmp_matrix = 1.0 - trs_matrix # 相似度转为不相似度
         len_a = len(batch_trjs)
         len_b = len(trjs)
@@ -138,9 +139,9 @@ def trajectory_distance_batch(i, batch_trjs, trjs, metric_type="hausdorff", data
                 sum_len_matrix[ii][jj] = len(batch_trjs[ii]) + len(trjs[jj])
         tmp_trs_matrix = tmp_matrix * min_len_matrix # 乘以最小长度
         trs_matrix = sum_len_matrix - 2.0 * tmp_trs_matrix # 最终LCSS距离公式
-    elif metric_type == 'edr':
+    elif distance_type == 'edr':
         # EDR (Edit Distance on Real sequence) 距离计算
-        trs_matrix = tdist.cdist(batch_trjs, trjs, metric=metric_type, eps=0.003)
+        trs_matrix = tdist.cdist(batch_trjs, trjs, metric=distance_type, eps=0.003)
         len_a = len(batch_trjs)
         len_b = len(trjs)
         max_len_matrix = np.ones((len_a, len_b))
@@ -148,21 +149,21 @@ def trajectory_distance_batch(i, batch_trjs, trjs, metric_type="hausdorff", data
             for jj in range(len_b):
                 max_len_matrix[ii][jj] = max(len(batch_trjs[ii]), len(trjs[jj]))
         trs_matrix = trs_matrix * max_len_matrix # EDR距离公式
-    elif metric_type == 'erp':
+    elif distance_type == 'erp':
         # ERP (Edit Distance with Real Penalty) 距离计算
         # aa 是一个参考点，用于计算删除/插入点的惩罚。这里硬编码了Porto范围的中心点。
         aa = np.zeros(2, dtype=float)
         aa[0] = 40.0  # Porto数据的纬度参考点 (接近范围中心)
         aa[1] = -10.0 # Porto数据的经度参考点 (接近范围中心)
-        trs_matrix = tdist.cdist(batch_trjs, trjs, metric=metric_type, g=aa)
+        trs_matrix = tdist.cdist(batch_trjs, trjs, metric=distance_type, g=aa)
     else:
         # 对于其他距离类型 (如hausdorff, dtw)，直接使用cdist
-        trs_matrix = tdist.cdist(batch_trjs, trjs, metric=metric_type)
+        trs_matrix = tdist.cdist(batch_trjs, trjs, metric=distance_type)
 
     trs_matrix = np.array(trs_matrix) # 转换为NumPy数组
     
     # 构建保存路径
-    output_dir = './ground_truth/{}/{}/{}_spatial_batch/'.format(data_name, str(metric_type), str(metric_type))
+    output_dir = './ground_truth/{}/{}/{}_spatial_batch/'.format(data_name, str(distance_type), str(distance_type))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir) # 如果目录不存在则创建
     
@@ -226,7 +227,7 @@ def trajectory_distance_combine(trajs_len, batch_size, metric_type, data_name):
 
 # --- 时间距离计算函数 (考虑时间信息) ---
 
-def trajecotry_distance_list_time(trajs, distance_type="hausdorff", batch_size=50, processors=30, data_name='porto'):
+def trajecotry_distance_list_time(trajs, distance_type=config.distance_type, batch_size=config.batch_size, processors=30, data_name=config.data_type):
     """
     批量计算轨迹列表之间的时间距离（考虑时间信息），并保存中间结果。此函数是主要的批量时间距离计算入口。
 
