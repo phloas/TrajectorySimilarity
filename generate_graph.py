@@ -2,22 +2,13 @@ import pandas as pd
 import pickle
 import numpy as np
 import os.path as osp
-import os # 导入os模块，用于路径操作和目录创建
+import os
 from tqdm import tqdm
-from tools import config  # 假设 config.py 存在并定义了 data_type 和 datalength
+from config import *  # 假设 config.py 存在并定义了 data_type 和 datalength
 import csv
 import math
-import argparse # 导入argparse模块，用于处理命令行参数
+import argparse 
 
-
-# --- 全局常量和配置 ---
-# Geolife数据集的经纬度范围
-beijing_lat_range = [39.6, 40.7]
-beijing_lon_range = [115.9, 117.1]
-
-# Porto数据集的经纬度范围
-porto_lat_range = [40.7, 41.8]
-porto_lon_range = [-9.0, -7.9]
 
 # 距离阈值列表，用于生成不同连接密度的图。单位为米。
 # 150米阈值对应的是主 edge.csv 文件。
@@ -28,24 +19,14 @@ DISTANCE_THRESHOLDS = [100.0, 125.0, 150.0, 175.0, 200.0]
 def haversine(lat1, lng1, lat2, lng2):
     """
     使用Haversine公式计算地球上两点之间的距离。
-    
-    参数:
-    lat1 (float): 第一个点的纬度 (度)
-    lng1 (float): 第一个点的经度 (度)
-    lat2 (float): 第二个点的纬度 (度)
-    lng2 (float): 第二个点的经度 (度)
-    
-    返回:
-    float: 两点之间的距离，单位为米
     """
     R = 6371 * 1000  # 地球半径，单位为米
-    # 将经纬度从度转换为弧度
+
     lat1, lng1, lat2, lng2 = map(math.radians, [lat1, lng1, lat2, lng2])
 
     dlat = lat2 - lat1
     dlng = lng2 - lng1
     
-    # Haversine公式计算球面距离
     a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlng / 2) ** 2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
@@ -54,12 +35,6 @@ def haversine(lat1, lng1, lat2, lng2):
 def write_edges_to_csv(edges, threshold, data_type):
     """
     将生成的边数据写入CSV文件。
-    
-    参数:
-    edges (list): 包含边的列表，每条边为 [起始节点ID, 结束节点ID, 长度]
-    threshold (float): 用于命名文件的距离阈值。
-                       如果为150.0，文件名为 '_edge.csv'；否则为 '_edge_X.csv'。
-    data_type (str): 数据集类型 (例如 'beijing', 'porto')
     """
     # 根据阈值构建文件名
     if threshold == 150.0:
@@ -67,7 +42,6 @@ def write_edges_to_csv(edges, threshold, data_type):
     else:
         file_name = osp.join('features', data_type, f'{data_type}_edge_{int(threshold)}.csv')
 
-    # 确保目标目录存在
     output_dir = osp.join('features', data_type)
     os.makedirs(output_dir, exist_ok=True) # 使用 os.makedirs 确保目录存在
 
@@ -76,8 +50,6 @@ def write_edges_to_csv(edges, threshold, data_type):
         writer.writerow(['s_node', 'e_node', 'length'])  # 写入CSV文件头
         writer.writerows(edges) # 写入所有边数据
     print(f"边数据 (阈值: {threshold}m) 已写入: {file_name}，共 {len(edges)} 条边。")
-
-# --- 主要功能函数 ---
 
 def extract_nodes_edges(traj_grid, traj_coor, data_type):
     """
@@ -95,11 +67,9 @@ def extract_nodes_edges(traj_grid, traj_coor, data_type):
     coor2id = {}      # 真实坐标 (tuple(lng, lat)) 到节点ID的映射 (用于边的生成)
     node_id = 0       # 节点ID计数器，从0开始递增
 
-    # 遍历所有轨迹，为每个唯一的网格点和坐标点分配一个唯一的节点ID
     for grids, coors in tqdm(zip(traj_grid, traj_coor), desc="生成节点ID"):
-        tmp_traj = [] # 用于存储当前轨迹中点的节点ID序列
+        tmp_traj = [] 
         for grid, coor in zip(grids, coors):
-            # 如果当前网格点尚未被记录，则分配新的节点ID
             if tuple(grid) not in grid2id:
                 grid2id[tuple(grid)] = node_id
                 coor2id[tuple([coor[0], coor[1]])] = node_id # 记录真实坐标与节点ID的映射
@@ -109,18 +79,17 @@ def extract_nodes_edges(traj_grid, traj_coor, data_type):
     print(f"步骤1/3: 节点ID映射完成。共识别出 {node_id} 个唯一节点。")
 
     # 可选：保存轨迹的节点ID序列到pickle文件
-    # with open(osp.join('./features', data_type, f'{data_type}_traj_id'), 'wb') as f:
-    #     pickle.dump(traj_id, f)
-    # print(f"轨迹ID序列已保存到: ./features/{data_type}/{data_type}_traj_id")
+    with open(osp.join('./features', data_type, f'{data_type}_traj_id'), 'wb') as f:
+        pickle.dump(traj_id, f)
+    print(f"轨迹ID序列已保存到: ./features/{data_type}/{data_type}_traj_id")
 
-    # 步骤2: 计算所有唯一坐标点之间的Haversine距离，并收集所有潜在的边
+    # 计算所有唯一坐标点之间的Haversine距离，并收集所有潜在的边
     print("步骤2/3: 开始计算节点间的Haversine距离并收集潜在边...")
     all_potential_edges = [] # 存储所有计算出的边 (s_node_id, e_node_id, distance)
     unique_points = list(coor2id.keys()) # 获取所有唯一的真实坐标点
     unique_point_ids = list(coor2id.values()) # 获取对应的节点ID
 
     # 遍历所有唯一的坐标点对，计算它们之间的距离
-    # 使用双层循环，只计算一次 (i, j) 对，并添加双向边
     for i in tqdm(range(len(unique_points)), desc="计算点对距离"):
         point1 = unique_points[i]
         point1_id = unique_point_ids[i]
@@ -133,7 +102,7 @@ def extract_nodes_edges(traj_grid, traj_coor, data_type):
             # 如果距离不为0，则添加这条潜在的边及其反向边，表示无向图
             if distance > 0.0:
                 all_potential_edges.append([point1_id, point2_id, distance])
-                all_potential_edges.append([point2_id, point1_id, distance]) # 添加反向边
+                all_potential_edges.append([point2_id, point1_id, distance]) 
 
     print(f"步骤2/3: 已收集 {len(all_potential_edges)} 条潜在边 (包含双向边)。")
 
@@ -153,25 +122,14 @@ def extract_edges_from_trajectory(trajectory, nodes_dict):
     此函数用于从单个轨迹中提取连续的边，并统计其出现次数。
     与 `extract_nodes_edges` 不同，此函数关注的是轨迹中连续点之间的连接，
     而非所有空间上接近的点之间的连接。
-    
-    参数:
-    trajectory (list): 包含轨迹点坐标的列表 (经度, 纬度)。
-                       例如：[(lng1, lat1), (lng2, lat2), ...]
-    nodes_dict (dict): 真实坐标 (tuple) 到节点ID的映射，用于将坐标转换为ID。
-    
-    返回:
-    list: 包含唯一边的列表，每条边为 [起始节点ID, 结束节点ID, 长度, 计数]。
-          边的方向被规范化 (s_node <= e_node) 以便去重和计数。
     """
     edges_in_trajectory = set()  # 使用集合来去重 (s_node_id, e_node_id, length)
     print("开始从单个轨迹中提取连续边...")
-    # 遍历轨迹中的相邻点对
     for i in range(1, len(trajectory)):
         lat1, lng1 = trajectory[i - 1]
         lat2, lng2 = trajectory[i]
 
         # 使用节点字典将经纬度转换为节点 ID
-        # 注意：这里使用 get() 来处理可能不存在的键，并返回 None
         s_node = nodes_dict.get(tuple([lng1, lat1]))
         e_node = nodes_dict.get(tuple([lng2, lat2]))
 

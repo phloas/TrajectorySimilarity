@@ -28,7 +28,6 @@ def distance_comp(coor_path, num_traj, distance_type, data_type, use_time_in_dis
         temp_time = []
         for item in t:
             temp_coord.append([item[0], item[1]])
-            # item[2] 是时间戳，我们将其转换为浮点数并保留
             temp_time.append([float(item[2]), float(0)]) # 第二个维度0可以是占位符或表示其他时间相关信息
         np_traj_coord.append(np.array(temp_coord))
         np_traj_time.append(np.array(temp_time))
@@ -61,7 +60,7 @@ def main():
                         help='Type of distance metric (e.g., hausdorff, dtw, lcss, erp)')
     parser.add_argument('--num_traj', type=int, default=10000, # 设置一个默认值
                         help='Number of trajectories to process')
-    parser.add_argument('--use_time_in_distance', action='store_true',
+    parser.add_argument('--use_time_in_distance', default=False, action='store_true',
                         help='Use time information in distance computation (add this flag to enable)')
 
     # 解析命令行参数
@@ -72,12 +71,12 @@ def main():
         lat_range = BEIJING_LAT_RANGE
         lon_range = BEIJING_LON_RANGE
         data_path = './data/geolife/geolife' # 确保这个路径正确
-        default_num_traj = 9000 # Geolife的默认轨迹数量
+        default_num_traj = 16830 # Geolife的默认轨迹数量
     elif args.dataset == 'porto':
         lat_range = PORTO_LAT_RANGE
         lon_range = PORTO_LON_RANGE
         data_path = './data/porto/porto' # 确保这个路径正确
-        default_num_traj = 10000 # Porto的默认轨迹数量
+        default_num_traj = 40000 # Porto的默认轨迹数量
     else:
         raise ValueError("Invalid dataset specified. Choose 'geolife' or 'porto'.")
 
@@ -86,13 +85,16 @@ def main():
 
     print(f"开始预处理 {args.dataset} 数据集...")
     # 生成轨迹特征文件
-    coor_path, data_name_processed = trajectory_feature_generation(path=data_path,
-                                                                    lat_range=lat_range,
-                                                                    lon_range=lon_range,)
-    print(f"轨迹特征已生成到: {coor_path}")
+    feature_path = f'./features/{args.dataset}/{args.dataset}_traj_index'
+    if not os.path.exists(feature_path):
+        coor_path, data_name_processed = trajectory_feature_generation(path=data_path,
+                                                                        lat_range=lat_range,
+                                                                        lon_range=lon_range,)
+        print(f"轨迹特征已生成到: {coor_path}")
 
     # 调用距离计算函数
     distance_comp(coor_path, num_traj_to_process, args.distance, data_name_processed, args.use_time_in_distance)
+    print(f"{args.dataset}的{args.distance}距离已经计算完毕。")
     print("所有操作完成。")
 
 
