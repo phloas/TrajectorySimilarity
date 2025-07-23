@@ -13,7 +13,7 @@ import pickle
 import numpy as np
 import time
 import argparse 
-from tools.config import batch_size
+from tools.config import batch_size, BEIJING_LAT_RANGE, BEIJING_LON_RANGE, PORTO_LAT_RANGE, PORTO_LON_RANGE
 # 导入自定义工具模块
 from generate_feature import trajectory_feature_generation # 导入用于轨迹特征生成的preprocess模块
 from tools.distance_computation import trajecotry_distance_list_time, trajecotry_distance_list # 导入距离计算函数
@@ -69,13 +69,13 @@ def main():
 
     # 根据选择的数据集定义经纬度范围
     if args.dataset == 'geolife':
-        lat_range = [39.6, 40.7]
-        lon_range = [115.9, 117.1]
+        lat_range = BEIJING_LAT_RANGE
+        lon_range = BEIJING_LON_RANGE
         data_path = './data/geolife/geolife' # 确保这个路径正确
         default_num_traj = 9000 # Geolife的默认轨迹数量
     elif args.dataset == 'porto':
-        lat_range = [40.7, 41.8]
-        lon_range = [-9.0, -7.9]
+        lat_range = PORTO_LAT_RANGE
+        lon_range = PORTO_LON_RANGE
         data_path = './data/porto/porto' # 确保这个路径正确
         default_num_traj = 10000 # Porto的默认轨迹数量
     else:

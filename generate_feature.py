@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 generate_feature.py
 
@@ -15,16 +12,6 @@ generate_feature.py
 import pickle
 import os.path as osp
 from tqdm import tqdm
-
-
-# --- 全局常量和配置 ---
-# Geolife数据集的经纬度范围
-beijing_lat_range = [39.6, 40.7]
-beijing_lon_range = [115.9, 117.1] 
-# Porto数据集的经纬度范围
-porto_lon_range = [-9.0, -7.9]
-porto_lat_range = [40.7, 41.8]
-
 
 class Preprocesser(object):
     """
@@ -218,8 +205,8 @@ class Preprocesser(object):
 
 
 def trajectory_feature_generation(path=None,
-                                  lat_range=porto_lat_range,
-                                  lon_range=porto_lon_range,
+                                  lat_range=None,
+                                  lon_range=None,
                                   min_length=50):
     """
     从原始数据文件中加载轨迹，进行过滤和特征生成（网格化、坐标序列）。
